@@ -1,7 +1,12 @@
-﻿using Grasshopper.Kernel;
+﻿using AForge.Imaging.Filters;
+using Grasshopper;
+using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Windows.Forms;
 
 // In order to load the result of this wizard, you will also need to
 // add the output bin/ folder of this project to the list of loaded
@@ -24,6 +29,7 @@ namespace WindBellDithering
               "Description",
               "Category", "Subcategory")
         {
+
         }
 
         /// <summary>
@@ -31,6 +37,9 @@ namespace WindBellDithering
         /// </summary>
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
+            pManager.AddTextParameter("path", "P", "", GH_ParamAccess.item);
+            pManager.AddIntegerParameter("column", "C", "", GH_ParamAccess.item);
+            pManager.AddIntegerParameter("row", "R", "", GH_ParamAccess.item);
         }
 
         /// <summary>
@@ -38,6 +47,7 @@ namespace WindBellDithering
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
+            pManager.AddBooleanParameter("Pattern", "P", "", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -47,6 +57,43 @@ namespace WindBellDithering
         /// to store data in output parameters.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            String path = "";
+            int C = 0;
+            int R = 0;
+            DA.GetData("path", ref path);
+            DA.GetData("row", ref R);
+            DA.GetData("column", ref C);
+
+            Bitmap bm = new Bitmap(path);
+            ResizeBilinear resizer = new ResizeBilinear(C, R);
+            var bm2 = resizer.Apply(bm);
+            AForge.Imaging.ColorReduction.FloydSteinbergColorDithering dithering = new AForge.Imaging.ColorReduction.FloydSteinbergColorDithering();
+            dithering.ColorTable = new Color[] { Color.White, Color.Black };
+            var bm3 = dithering.Apply(bm2);
+
+            DataTree<bool> results = new DataTree<bool>();
+            for (int i = 0; i < C; i++)
+            {
+                for (int j = 0; j < R; j++)
+                {
+                    bool result;
+                    
+                    Color color = bm3.GetPixel(i, j);
+                    if (color.GetBrightness() < 0.5)
+                    {
+                        result = true;
+                    }
+                    else
+                    {
+                        result = false;
+                    }
+
+                    GH_Path gH_Path = new GH_Path(i, R - j -1);
+                    results.Add(result, gH_Path);
+                }
+            }
+
+            DA.SetDataTree(0, results);
         }
 
         /// <summary>
